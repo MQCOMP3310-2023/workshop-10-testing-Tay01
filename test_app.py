@@ -1,5 +1,5 @@
 import unittest
-from flask import current_app
+from flask import current_app, escape
 from project import create_app, db
 from project.models import User
 from werkzeug.security import check_password_hash
@@ -35,8 +35,9 @@ class TestWebApp(unittest.TestCase):
         assert response.status_code == 200
 
     def test_no_access_to_profile(self):
-        # TODO: Check that non-logged-in user should be redirected to /login
-        assert False
+        response = self.client.get('/profile', follow_redirects=True)
+        assert response.status_code == 200
+        assert response.request.path == '/login'
 
     def test_register_user(self):
         response = self.client.post('/signup', data = {
@@ -80,7 +81,25 @@ class TestWebApp(unittest.TestCase):
         assert response.status_code == 200 
 
     def test_xss_vulnerability(self):
-        # TODO: Can we store javascript tags in the username field?
-        assert False
+        response = self.client.post('/signup', data = {
+                'email': 'test@email.com',
+                'name': '<script>alert("Hacked!");</script>',
+                'password': 'test'
+            }, follow_redirects = True)
+
+        assert response.status_code == 200
+        # should redirect to the login page
+        assert response.request.path == '/login'
+
+        response = self.client.post('/login', data = {
+            'email' : 'test@email.com',
+            'password' : 'test'
+        }, follow_redirects = True)
+        assert response.status_code == 200
+
+        response = self.client.get('/profile')
+        html = response.get_data(as_text = True)
+        assert escape('<script>alert("Hacked!");</script>') in html
+
 
 
